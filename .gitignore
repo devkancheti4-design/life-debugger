@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.life.json
+.life_debugger.json
+proof_life.json
+.DS_Store
