@@ -128,4 +128,6 @@ research/           the experiments that produced the numbers
 
 ## License
 
-MIT.
+**GNU Affero General Public License v3.0** (AGPL-3.0-or-later) — see [`LICENSE`](LICENSE). Strong copyleft:
+if you run a modified version as a network service, you must publish your source. (`life.py` is included
+from the [life-memory](https://github.com/devkancheti4-design/life-memory) project.)

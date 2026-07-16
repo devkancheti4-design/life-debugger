@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """PROOF the Life is alive — it stores facts, learns fixes, replays them FREE, and survives restart.
 
 Run:  python3 proof_alive.py

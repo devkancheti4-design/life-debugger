@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """The Life Debugger — a four-tier, mostly-local, never-bluff Python debugger.
 
     TIER 1  FACTS     static anti-patterns + execute-and-catch — the finite, certain surface ($0)
@@ -110,9 +111,11 @@ def debug(code, test=None, reasoner=None, life=None):
 
     # TIER 1 — FACTS: free, deterministic, never-bluff
     report["facts"] = static_facts(code)
-    rt = runtime_fact(code, test)
-    if rt:
-        report["facts"].append((rt[0], None, rt[1]))
+    parseable = not (report["facts"] and report["facts"][0][0] == "SyntaxError")
+    if parseable:                                    # don't re-run un-parseable code (syntax already reported)
+        rt = runtime_fact(code, test)
+        if rt:
+            report["facts"].append((rt[0], None, rt[1]))
 
     sig = _sig(code)
 
