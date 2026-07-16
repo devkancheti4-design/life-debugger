@@ -1,133 +1,70 @@
 # The Life Debugger
 
-**A four-tier, mostly-local, never-bluff Python debugger.** Catch the certain surface bugs for **$0**, let a
-small local model reason the common hard ones, escalate only the genuinely-novel tail to a frontier model —
-and an **alive, persistent memory (the "Life") learns every fix a model produces and replays it free forever
-after.** The more you run it, the cheaper it gets.
-
-> Honest by design. Every number below comes from running code (`proof_alive.py`, and the research in
-> [`ARCHITECTURE.md`](ARCHITECTURE.md)). It does **not** claim to beat a frontier model — it claims to make
-> most bugs free, deterministic, and never-invented, and to only pay a reasoner for what actually needs one.
-
----
-
-## How it works — four tiers
-
-```
-              your buggy code
-                    │
-   ┌────────────────▼─────────────────┐
-   │ TIER 1 · FACTS                    │  static anti-patterns + execute-and-catch
-   │ detect + explain the certain      │  $0 · deterministic · never bluffs
-   │ surface bugs                      │
-   └────────────────┬─────────────────┘
-                    │  (something it can't be certain about)
-   ┌────────────────▼─────────────────┐
-   │ TIER 2 · LIFE  (alive cache)      │  has a model already solved this? replay the fix FREE
-   └────────────────┬─────────────────┘
-                    │  (never seen before)
-   ┌────────────────▼─────────────────┐
-   │ TIER 3 · NET   (small local model)│  reasons the common intent-dependent fix   (~$0, local)
-   └────────────────┬─────────────────┘
-                    │  (genuinely novel)
-   ┌────────────────▼─────────────────┐
-   │ TIER 4 · FRONTIER  (optional)     │  the hard tail
-   └───────────────────────────────────┘
-        every model solve is LEARNED by the Life → never solved twice
-```
-
-## Measured (from running code)
-
-| Property | Result |
-|---|---|
-| Beginner bugs resolved by the free fact tier | **70%** (never-bluff) |
-| Advanced/concurrency bugs by the fact tier | ~34–54% (surface); deep ones escalate |
-| Small local net (qwen-7B) on real concurrency code | verified-fixed **8/13**, $0 API |
-| **Facts + net together** on that file | **12/13** (each covers the other's blind spot) |
-| Reasoning-model calls cut by the alive cache (recurring stream) | **~63%** (70% → 12% over time) |
-| Semantic bugs a fact base can catch | **7%** (the rest need reasoning — not a size problem) |
-
-The honest boundaries (where it thins out, what it can't do) are written into
-[`ARCHITECTURE.md`](ARCHITECTURE.md) — read it before you trust the pitch.
-
----
-
-## Install
+A small Python debugger that explains most of your bugs **instantly and for free**, and only asks a bigger
+AI model for help on the genuinely hard ones. It **remembers every fix it learns**, so it gets more useful
+the more you use it — and it never makes an answer up.
 
 ```bash
-git clone git@github.com:<you>/life-debugger.git
+git clone https://github.com/devkancheti4-design/life-debugger.git
 cd life-debugger
-# pure Python 3.9+, no dependencies for tiers 1–2. (Tier 3 optionally uses ollama.)
-python3 proof_alive.py          # see the Life work + learn, live
+python3 proof_alive.py     # watch it learn a fix once, then reuse it for free
 ```
+
+## Why
+
+Most bugs are the same handful of mistakes — a typo, a missing colon, comparing with `is` instead of `==`,
+the wrong kind of value. You shouldn't need a slow, paid AI model to point those out. The Life Debugger
+catches them instantly for free, explains them in plain English, and saves the expensive model for the
+tricky stuff. When it *does* ask a model, it remembers the answer — so next time, that fix is free too.
 
 ## Use it
 
+No dependencies, no API key needed for the basics:
+
 ```python
-from life_debugger import debug, AliveLife
+from life_debugger import debug
 
-# free fact tier — detect + explain, no model
-report = debug(open("buggy.py").read())
+report = debug(open("my_script.py").read())
 for kind, line, why in report["facts"]:
-    print(f"line {line}: [{kind}] {why}")
-
-# attach a reasoner for the intent-dependent bugs; the Life learns each fix once
-def my_model(code, fact_kinds):        # plug in ollama/qwen, a frontier API, anything
-    return call_your_model(code)
-
-report = debug(code, reasoner=my_model)
-print(report["handled_by"])            # "reasoner (escalated)" the first time...
-report = debug(code, reasoner=my_model)
-print(report["handled_by"])            # ..."life-cache (free, $0)" every time after
+    print(f"line {line}: {why}")
 ```
 
-## How the Life works and learns
+Want it to fix the harder bugs too? Plug in any model you have:
 
-The Life is a **persistent, exact, honest memory** (`life.py`). It is *not* just a dict:
+```python
+def my_model(code, hints):
+    return call_whatever_model_you_like(code)
 
-- **It stores facts** — `learn(key, value)`, O(1) recall, scales to millions.
-- **It never overwrites** — revising a key keeps the full history; newest wins recall.
-- **It abstains** — recall on an unknown key returns `None`, a real "I don't know", never a guess.
-- **It is byte-reproducible** — same facts → same `sha()`, on any machine.
-- **It is ALWAYS ALIVE** — it loads from disk on startup and saves after every learn, so it accumulates
-  across runs and sessions. It never resets to static.
-
-When a reasoner solves a bug, the Life **learns** `(bug-signature → fix)` and persists it. Next time that
-bug appears, tier 2 **replays the fix for free** — the model is never called again for it.
-
-**Honest limits** (also in the code comments): the Life is *exact-key* — a typo misses, like a dict; it
-doesn't do fuzzy/semantic matching by itself (pair it with the net for that). The free replay is *full* for
-canonical fixes and *recognition-only* for context-specific ones (the net still places the lock). And
-genuinely-novel bugs always escalate — the reasoner is a permanent tier, not a crutch removed once you have
-"enough" facts. **Semantics can't be stored, only reasoned — the Life makes reasoning cheaper, not optional.**
-
-## Proof it works and learns (run it)
-
-```
-$ python3 proof_alive.py
-...
-[3] LEARN + REPLAY FREE — a reasoner is called ONCE, then the Life replays forever
-    1st time  -> handled_by: reasoner (escalated)     reasoner calls so far: 1
-    2nd time  -> handled_by: life-cache (free, $0)    reasoner calls so far: 1
-    3rd time  -> handled_by: life-cache (free, $0)    reasoner calls so far: 1
-[4] ALWAYS ALIVE — a brand-new process reloads the same facts from disk (never resets)
-    before restart: 4 facts, sha 33389988e539d84c
-    after  restart: 4 facts, sha 33389988e539d84c
-    >> byte-identical after restart: the Life is alive, not static.
+debug(code, reasoner=my_model)   # asks the model once, then remembers the fix forever
 ```
 
-## Layout
+## How it works
+
+It tries the cheapest thing first and only escalates when it has to:
+
+1. **Known patterns** — catches common bugs instantly, for free, and never guesses.
+2. **Memory** — if it has solved this before, it reuses the fix for free.
+3. **A model** — for something new, it asks an AI, then *remembers* the answer.
+
+The memory is the "alive" part: it saves to disk and reloads every run, so it never forgets — it just keeps
+getting more helpful over time.
+
+## Honest about the limits
+
+It won't fix everything, and it won't pretend to. It's genuinely good at the common, mechanical bugs — most
+of what you hit day to day — and honest about the rest: it says *"I'm not sure, ask the model"* instead of
+inventing a fix. If you want the details — how it works, what it's been measured to do, and exactly where it
+falls short — it's all in **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
+## What's in here
 
 ```
-life_debugger.py    the four-tier debug() + the persistent AliveLife
-life.py             the Life: exact, permanent, honest memory (one file, no deps)
-proof_alive.py      runnable proof it stores/learns/replays/survives-restart
-ARCHITECTURE.md     the full design + every measured number + honest boundaries
-research/           the experiments that produced the numbers
+life_debugger.py   the debugger you import
+life.py            the memory that remembers fixes (one file, no dependencies)
+proof_alive.py     run it to see the memory learn and reuse a fix
+ARCHITECTURE.md    the full design, the numbers, and the honest limits
 ```
 
 ## License
 
-**GNU Affero General Public License v3.0** (AGPL-3.0-or-later) — see [`LICENSE`](LICENSE). Strong copyleft:
-if you run a modified version as a network service, you must publish your source. (`life.py` is included
-from the [life-memory](https://github.com/devkancheti4-design/life-memory) project.)
+[AGPL-3.0](LICENSE) — free and open. If you run a modified version as a service, please share your changes.
